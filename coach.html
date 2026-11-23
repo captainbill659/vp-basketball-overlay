@@ -1,0 +1,28 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Villa Park Coach Dashboard</title><style>
+:root{font-family:system-ui,sans-serif;background:#0c172b;color:#f7f9ff}body{margin:auto;max-width:1200px;padding:16px}h1{margin:4px 0 16px} .bar,.scores{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.box{background:#182944;border:1px solid #405d83;border-radius:12px;padding:14px;flex:1}.big{font-size:42px;font-weight:800}table{width:100%;border-collapse:collapse;min-width:850px}td,th{padding:10px 6px;border-bottom:1px solid #405d83;text-align:center}td:first-child,th:first-child{text-align:left;position:sticky;left:0;background:#182944}.wrap{overflow:auto;background:#182944;border-radius:12px;margin-top:14px}small{color:#b8c9e2}.on{color:#8af0c0;font-weight:700}.err{color:#ffb5b5}select{background:#263c5b;color:white;padding:9px;border-radius:8px}
+</style><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script></head><body>
+<small>VILLA PARK BASKETBALL</small><h1>Live Coach Dashboard</h1><p id="status">Connecting to live statistics…</p>
+<div class="scores"><div class="box"><small>VILLA PARK</small><div class="big" id="home">—</div></div><div class="box"><small id="opponent">OPPONENT</small><div class="big" id="away">—</div></div><div class="box"><small>PERIOD</small><div class="big" id="period">—</div></div></div>
+<div class="bar" style="margin-top:16px"><label>Statistics <select id="view"><option value="all">All players</option><option value="court">On court only</option></select></label><small>MIN = playing time recorded by controller. No clock appears on the livestream.</small></div>
+<div class="wrap"><table><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>FOUL</th><th>FG%</th><th>2PT%</th><th>3PT%</th><th>FT%</th></tr></thead><tbody id="players"><tr><td>Waiting for game data…</td></tr></tbody></table></div>
+<p><small>View only. Statistics refresh automatically when the scoring iPad sends updates. The link is a secret access link; anyone who obtains it can view the dashboard.</small></p>
+<script>
+'use strict';
+const firebaseConfig={apiKey:'AIzaSyCmbcrD-d1zMFjkdWKvpJBxqEDp-3BNjZQ',authDomain:'vp-basketball-live.firebaseapp.com',databaseURL:'https://vp-basketball-live-default-rtdb.firebaseio.com',projectId:'vp-basketball-live',storageBucket:'vp-basketball-live.firebasestorage.app',messagingSenderId:'405301992818',appId:'1:405301992818:web:17f0ee3bb0f90be69c51eb'};
+const token='vB4HOL0Kf5OI7r6pb1noEieM6HwUEIzq';
+const $=id=>document.getElementById(id);
+const pct=(m,a)=>a?(100*m/a).toFixed(1)+'%':'—';
+const mmss=ms=>{const x=Math.floor((ms||0)/1000);return Math.floor(x/60)+':'+String(x%60).padStart(2,'0')};
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let data=null;
+function render(){
+ if(!data)return;
+ $('home').textContent=data.home??0;$('away').textContent=data.away??0;$('period').textContent=data.period||'—';$('opponent').textContent=data.opponent||'OPPONENT';
+ const on=new Set(data.onCourt||[]);
+ const rows=(data.players||[]).filter(p=>$('view').value==='all'||on.has(p.id));
+ $('players').innerHTML=rows.map(p=>`<tr><td>${on.has(p.id)?'<span class="on">● </span>':''}${esc(p.number?'#'+p.number+' ':'')}${esc(p.name)}</td><td>${mmss(p.minutesMs)}</td><td>${p.points||0}</td><td>${(p.rebO||0)+(p.rebD||0)}</td><td>${p.assist||0}</td><td>${p.steal||0}</td><td>${p.block||0}</td><td>${p.turnover||0}</td><td>${p.foul||0}</td><td>${pct(p.fgm,p.fga)}</td><td>${pct(p.fg2m,p.fg2a)}</td><td>${pct(p.fg3m,p.fg3a)}</td><td>${pct(p.ftm,p.fta)}</td></tr>`).join('');
+ $('status').textContent='Live • updated '+(data.updatedAt?new Date(data.updatedAt).toLocaleTimeString():'recently');
+}
+$('view').addEventListener('change',render);
+try{firebase.initializeApp(firebaseConfig);firebase.database().ref('coachFeeds/'+token).on('value',snap=>{data=snap.val();if(!data){$('status').textContent='Waiting for the scoring iPad to publish the first update.';return}render()},err=>{$('status').className='err';$('status').textContent='Cannot read coach feed. Check Firebase database rules: '+err.message})}catch(e){$('status').textContent=e.message}
+</script></body></html>
