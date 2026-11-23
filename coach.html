@@ -18,13 +18,16 @@ let data=null, connected=false, connectionKnown=false, lastReceivedAt=0, readErr
 function updateConnectionStatus(){
  const el=$('status');el.className='';
  if(readError){el.className='err';el.textContent=readError;return}
- if(connectionKnown&&!connected){el.className='err';el.textContent='OFFLINE — Coach iPad is disconnected. Statistics may be outdated.';return}
- if(!data){el.className='warn';el.textContent='Connected — waiting for the scoring iPad to publish statistics.';return}
- const age=data.updatedAt?Math.max(0,Math.floor((Date.now()-data.updatedAt)/1000)):null;
- const time=data.updatedAt?new Date(data.updatedAt).toLocaleTimeString():'unknown';
- if(age===null){el.className='warn';el.textContent='Connected — last update time unavailable. Verify the scoring iPad.';return}
- if(age>=60){el.className='warn';el.textContent='STALE DATA — No update for '+Math.floor(age/60)+'m '+(age%60)+'s (last '+time+'). Check scoring iPad connection or whether game is paused.';return}
- el.className='good';el.textContent='Connected • Last scoring update '+time+(age>=20?' ('+age+'s ago)':'');
+ if(!navigator.onLine || (connectionKnown&&!connected)){
+  el.className='err';el.textContent='OFFLINE — Coach iPad is disconnected from Firebase. Displayed statistics may be outdated.';return;
+ }
+ if(!connectionKnown){el.className='warn';el.textContent='Connecting to Firebase…';return}
+ if(!data){el.className='warn';el.textContent='CONNECTED to Firebase — waiting for the scoring iPad to publish statistics.';return}
+ const updated=Number(data.updatedAt);
+ const validTime=Number.isFinite(updated)&&updated>0;
+ const time=validTime?new Date(updated).toLocaleTimeString():'unavailable';
+ el.className='good';
+ el.textContent='CONNECTED to Firebase • Last scoring update: '+time+' • Updates appear automatically when published.';
 }
 setInterval(updateConnectionStatus,5000);
 window.addEventListener('online',updateConnectionStatus);
