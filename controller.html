@@ -42,6 +42,7 @@ body{padding:7px 10px}header h1{font-size:20px;margin:0}header small{font-size:1
 <p class="foot" id="reportStatus">Reports are saved on this iPad and can be downloaded. Email opens a draft; attach the downloaded PDF manually.</p>
 <h2>Saved game reports</h2><div id="historyReports"></div>
 </section>
+<section class="panel" id="backupPanel"><h2>Backup &amp; Restore</h2><p class="muted">Download a backup of this iPad’s roster, saved reports, current game, and game details. Keep the file in Files or iCloud Drive. Restore only when you intend to replace this iPad’s controller data.</p><div class="actions" style="justify-content:flex-start"><button id="exportBackup" class="secondary">Download full backup</button><button id="importBackup" class="secondary">Restore from backup file</button><input type="file" id="backupFile" accept=".json,application/json" class="hidden"></div><p class="foot" id="backupStatus" role="status">A backup is not automatic. Download one before tournaments or switching iPads.</p></section>
 <div class="controls" style="margin-top:14px"><button class="danger" id="reset">New game / Reset game stats</button><span class="muted">Roster is retained when starting a new game.</span></div>
 <p class="foot">Only team scores and the quarter are sent to the public PRISM overlay. Individual player data stays on this iPad in this version; a separate coach dashboard is not yet connected. Keep this tab on one scoring device and confirm the Live status before the game. Do not use private browsing or clear Safari website data.</p>
 <script>
@@ -207,5 +208,42 @@ $('historyReports').addEventListener('click',e=>{
  const r=history.find(x=>x.id===b.dataset.reportId);if(r)saveFile(filename(r)+'.html',reportHTML(r),'text/html;charset=utf-8');
 });
 renderHistory();
+
+// Full local-data backup. The backup file stays on the user's device; no cloud upload.
+const BACKUP_VERSION=1;
+$('exportBackup').addEventListener('click',()=>{
+ try{
+  flushClock();persist();
+  const backup={type:'vp-basketball-controller-backup',version:BACKUP_VERSION,exportedAt:new Date().toISOString(),
+   state:JSON.parse(JSON.stringify(state)),history:JSON.parse(JSON.stringify(history)),meta:{...gameMeta}};
+  saveFile('VP-basketball-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(backup,null,2),'application/json;charset=utf-8');
+  $('backupStatus').textContent='Backup downloaded. Keep the JSON file somewhere safe.';
+ }catch(e){$('backupStatus').textContent='Backup failed: '+e.message;alert('Backup failed. Do not reset anything. '+e.message)}
+});
+$('importBackup').addEventListener('click',()=>$('backupFile').click());
+$('backupFile').addEventListener('change',async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try{
+  if(file.size>15*1024*1024)throw Error('File is too large (15 MB limit).');
+  const backup=JSON.parse(await file.text());
+  if(backup?.type!=='vp-basketball-controller-backup'||backup.version!==BACKUP_VERSION||
+   !backup.state||!Array.isArray(backup.state.roster)||!Array.isArray(backup.state.events)||
+   !Array.isArray(backup.history)||!backup.meta||typeof backup.meta!=='object'||Array.isArray(backup.meta))
+   throw Error('Not a valid Villa Park full backup file.');
+  if(!backup.state.roster.every(p=>p&&typeof p.id==='string'&&typeof p.name==='string'&&typeof p.number==='string'))
+   throw Error('Backup roster has invalid entries.');
+  if(!backup.state.events.every(ev=>ev&&typeof ev==='object'))throw Error('Backup events are invalid.');
+  if(!backup.history.every(r=>r&&typeof r.id==='string'&&Array.isArray(r.players)))throw Error('Backup reports are invalid.');
+  if(!confirm('RESTORE BACKUP?\n\nThis REPLACES the roster, saved reports, current game and game details on THIS iPad. Download a backup of this iPad first if it has anything you want to keep.\n\nContinue?'))return;
+  const original=[KEY,REPORTS_KEY,META_KEY].map(k=>[k,localStorage.getItem(k)]);
+  try{
+   localStorage.setItem(KEY,JSON.stringify(backup.state));
+   localStorage.setItem(REPORTS_KEY,JSON.stringify(backup.history));
+   localStorage.setItem(META_KEY,JSON.stringify(backup.meta));
+  }catch(writeError){for(const [k,v] of original){try{if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(_){}}throw writeError}
+  alert('Backup restored. The controller will reload now.');location.reload();
+ }catch(err){$('backupStatus').textContent='Restore failed: '+err.message;alert('Restore failed; no backup was applied. '+err.message)}
+ finally{e.target.value=''}
+});
 
 </script></body></html>
