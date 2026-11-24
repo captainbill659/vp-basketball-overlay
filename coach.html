@@ -3,8 +3,9 @@
 </style><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script></head><body>
 <small>VILLA PARK BASKETBALL</small><h1>Live Coach Dashboard</h1><p id="status">Connecting to live statistics…</p>
 <div class="scores"><div class="box"><small>VILLA PARK</small><div class="big" id="home">—</div></div><div class="box"><small id="opponent">OPPONENT</small><div class="big" id="away">—</div></div><div class="box"><small>PERIOD</small><div class="big" id="period">—</div></div></div>
+<div id="vpTimeouts" style="margin-top:9px;color:#d9e8fa;font-size:13px" role="status" aria-live="polite">VILLA PARK TIMEOUTS — Waiting for updated game data</div>
 <div class="bar" style="margin-top:16px"><label>Period <select id="statPeriod"><option value="GAME">Full game</option></select></label><label>Players <select id="view"><option value="all">All players</option><option value="court">On court only</option></select></label><small>MIN = playing time recorded by controller. No clock appears on the livestream.</small></div>
-<div class="wrap"><table><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>FOUL</th><th>FG%</th><th>2PT%</th><th>3PT%</th><th>FT%</th></tr></thead><tbody id="players"><tr><td>Waiting for game data…</td></tr></tbody></table></div>
+<div class="wrap"><table><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>DUNK</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>FOUL</th><th>FG%</th><th>2PT%</th><th>3PT%</th><th>FT%</th></tr></thead><tbody id="players"><tr><td>Waiting for game data…</td></tr></tbody></table></div>
 <p><small>View only. Statistics refresh automatically when the scoring iPad sends updates. The link is a secret access link; anyone who obtains it can view the dashboard.</small></p>
 <script>
 'use strict';
@@ -18,16 +19,13 @@ let data=null, connected=false, connectionKnown=false, lastReceivedAt=0, readErr
 function updateConnectionStatus(){
  const el=$('status');el.className='';
  if(readError){el.className='err';el.textContent=readError;return}
- if(!navigator.onLine || (connectionKnown&&!connected)){
-  el.className='err';el.textContent='OFFLINE — Coach iPad is disconnected from Firebase. Displayed statistics may be outdated.';return;
- }
- if(!connectionKnown){el.className='warn';el.textContent='Connecting to Firebase…';return}
- if(!data){el.className='warn';el.textContent='CONNECTED to Firebase — waiting for the scoring iPad to publish statistics.';return}
- const updated=Number(data.updatedAt);
- const validTime=Number.isFinite(updated)&&updated>0;
- const time=validTime?new Date(updated).toLocaleTimeString():'unavailable';
- el.className='good';
- el.textContent='CONNECTED to Firebase • Last scoring update: '+time+' • Updates appear automatically when published.';
+ if(connectionKnown&&!connected){el.className='err';el.textContent='OFFLINE — Coach iPad is disconnected. Statistics may be outdated.';return}
+ if(!data){el.className='warn';el.textContent='Connected — waiting for the scoring iPad to publish statistics.';return}
+ const age=data.updatedAt?Math.max(0,Math.floor((Date.now()-data.updatedAt)/1000)):null;
+ const time=data.updatedAt?new Date(data.updatedAt).toLocaleTimeString():'unknown';
+ if(age===null){el.className='warn';el.textContent='Connected — last update time unavailable. Verify the scoring iPad.';return}
+ if(age>=60){el.className='warn';el.textContent='STALE DATA — No update for '+Math.floor(age/60)+'m '+(age%60)+'s (last '+time+'). Check scoring iPad connection or whether game is paused.';return}
+ el.className='good';el.textContent='Connected • Last scoring update '+time+(age>=20?' ('+age+'s ago)':'');
 }
 setInterval(updateConnectionStatus,5000);
 window.addEventListener('online',updateConnectionStatus);
@@ -35,6 +33,14 @@ window.addEventListener('offline',updateConnectionStatus);
 function render(){
  if(!data)return;
  $('home').textContent=data.home??0;$('away').textContent=data.away??0;$('period').textContent=data.period||'—';$('opponent').textContent=data.opponent||'OPPONENT';
+  const to=data.timeouts, toEl=$('vpTimeouts');
+  if(to&&Number.isFinite(Number(to.remaining30))&&Number.isFinite(Number(to.remaining60))){
+   const r30=Math.max(0,Number(to.remaining30)),r60=Math.max(0,Number(to.remaining60));
+   const u30=Number.isFinite(Number(to.used30))?Math.max(0,Number(to.used30)):null;
+   const u60=Number.isFinite(Number(to.used60))?Math.max(0,Number(to.used60)):null;
+   toEl.textContent='VILLA PARK TIMEOUTS REMAINING  ·  30-sec: '+r30+'  ·  60-sec: '+r60+(u30!==null&&u60!==null?'  (used: '+u30+' / '+u60+')':'');
+   toEl.hidden=false;
+  }else{toEl.hidden=false;toEl.textContent='VILLA PARK TIMEOUTS — Waiting for updated game data';}
  const periods=Array.isArray(data.periods)?data.periods:(data.format==='halves'?['H1','H2','OT1','OT2']:['Q1','Q2','Q3','Q4','OT1','OT2']);
  const selector=$('statPeriod'),current=selector.value;
  const wanted=['GAME',...periods];
@@ -45,7 +51,7 @@ function render(){
  const periodChoice=selector.value;
  const on=new Set(data.onCourt||[]);
  const rows=(data.players||[]).filter(p=>$('view').value==='all'||on.has(p.id)).map(p=>({...p,...(periodChoice==='GAME'?{}:(p.byPeriod?.[periodChoice]||{}))}));
- $('players').innerHTML=rows.map(p=>`<tr><td>${on.has(p.id)?'<span class="on">● </span>':''}${esc(p.number?'#'+p.number+' ':'')}${esc(p.name)}</td><td>${mmss(p.minutesMs)}</td><td>${p.points||0}</td><td>${(p.rebO||0)+(p.rebD||0)}</td><td>${p.assist||0}</td><td>${p.steal||0}</td><td>${p.block||0}</td><td>${p.turnover||0}</td><td>${p.foul||0}</td><td>${pct(p.fgm,p.fga)}</td><td>${pct(p.fg2m,p.fg2a)}</td><td>${pct(p.fg3m,p.fg3a)}</td><td>${pct(p.ftm,p.fta)}</td></tr>`).join('');
+ $('players').innerHTML=rows.map(p=>`<tr><td>${on.has(p.id)?'<span class="on">● </span>':''}${esc(p.number?'#'+p.number+' ':'')}${esc(p.name)}</td><td>${mmss(p.minutesMs)}</td><td>${p.points||0}</td><td>${p.dunks||0}</td><td>${(p.rebO||0)+(p.rebD||0)}</td><td>${p.assist||0}</td><td>${p.steal||0}</td><td>${p.block||0}</td><td>${p.turnover||0}</td><td>${p.foul||0}</td><td>${pct(p.fgm,p.fga)}</td><td>${pct(p.fg2m,p.fg2a)}</td><td>${pct(p.fg3m,p.fg3a)}</td><td>${pct(p.ftm,p.fta)}</td></tr>`).join('');
  updateConnectionStatus();
 }
 $('view').addEventListener('change',render);$('statPeriod').addEventListener('change',render);
