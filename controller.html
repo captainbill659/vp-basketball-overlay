@@ -223,7 +223,7 @@ function playerStatsFor(id,period){
 const reportPeriods=['Q1','Q2','Q3','Q4','H1','H2','OT1','OT2'];
 function createReport(){
  flushClock();
- const players=state.roster.map(p=>({id:p.id,number:p.number,name:p.name,quarters:Object.fromEntries(reportPeriods.map(q=>[q,{...playerStatsFor(p.id,q),minutesMs:playerTime(p.id,q)}])),total:{...playerStatsFor(p.id),minutesMs:playerTime(p.id)}}));
+ const players=state.roster.filter(p=>playerTime(p.id)>0).map(p=>({id:p.id,number:p.number,name:p.name,quarters:Object.fromEntries(reportPeriods.map(q=>[q,{...playerStatsFor(p.id,q),minutesMs:playerTime(p.id,q)}])),total:{...playerStatsFor(p.id),minutesMs:playerTime(p.id)}}));
  return {format:state.clock.format,id:Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),savedAt:new Date().toISOString(),game:{...gameMeta},home:total('home'),away:total('away'),quarterScores:Object.fromEntries(reportPeriods.map(q=>[q,{home:total('home',q),away:total('away',q)}])),timeouts:{used30:timeoutUsed('30'),used60:timeoutUsed('60'),remaining30:timeoutAvailable('30'),remaining60:timeoutAvailable('60')},players};
 }
 const statColumns=[['points','PTS'],['dunks','DUNK'],['rebO','OREB'],['rebD','DREB'],['assist','AST'],['steal','STL'],['block','BLK'],['turnover','TO'],['foul','FOUL'],['ftm','FTM'],['fta','FTA'],['fgm','FGM'],['fga','FGA'],['fg2m','2PM'],['fg2a','2PA'],['fg3m','3PM'],['fg3a','3PA'],['fgPct','FG%'],['fg2Pct','2PT%'],['fg3Pct','3PT%'],['ftPct','FT%'],['minutesMs','MIN']];
