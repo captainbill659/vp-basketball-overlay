@@ -13,6 +13,7 @@ try{
   document.getElementById('homeScore').textContent=Number(s.home)||0;
   document.getElementById('awayScore').textContent=Number(s.away)||0;
   document.getElementById('period').textContent=String(s.period||'Q1').slice(0,4);
+   document.getElementById('awayName').textContent=String(s.opponent||params.get('opponent')||'OPPONENT').slice(0,24).toUpperCase();
  },error=>console.error('Live score read failed:',error));
 }catch(e){console.error('Firebase initialization failed:',e);}
 </script></body></html>

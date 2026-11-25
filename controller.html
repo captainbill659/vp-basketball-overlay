@@ -143,7 +143,7 @@ function coachPayload(){
  updatedAt:firebase.database.ServerValue.TIMESTAMP};
 }
 function queueSync(){changeVersion++;pending=true;if(currentUser)syncNow()}
-async function syncNow(){if(!currentUser||syncing||!pending)return;syncing=true;pending=false;const version=changeVersion;$('connection').textContent='Sending score…';const payload={home:total('home'),away:total('away'),period:state.period,updatedAt:firebase.database.ServerValue.TIMESTAMP};try{await db.ref('liveScore').set(payload);if(version===changeVersion)$('connection').textContent='Live • synced to PRISM';try{await db.ref('coachFeeds/vB4HOL0Kf5OI7r6pb1noEieM6HwUEIzq').set(coachPayload())}catch(coachError){$('coachFeedStatus').textContent='Coach feed unavailable — check Firebase rules';}}catch(e){pending=true;$('connection').textContent='Sync failed: '+e.message;}finally{syncing=false;if(pending&&navigator.onLine)setTimeout(syncNow,1200)}}
+async function syncNow(){if(!currentUser||syncing||!pending)return;syncing=true;pending=false;const version=changeVersion;$('connection').textContent='Sending score…';const payload={home:total('home'),away:total('away'),period:state.period,opponent:($('gameOpponent').value.trim()||'Opponent').slice(0,24),updatedAt:firebase.database.ServerValue.TIMESTAMP};try{await db.ref('liveScore').set(payload);if(version===changeVersion)$('connection').textContent='Live • synced to PRISM';try{await db.ref('coachFeeds/vB4HOL0Kf5OI7r6pb1noEieM6HwUEIzq').set(coachPayload())}catch(coachError){$('coachFeedStatus').textContent='Coach feed unavailable — check Firebase rules';}}catch(e){pending=true;$('connection').textContent='Sync failed: '+e.message;}finally{syncing=false;if(pending&&navigator.onLine)setTimeout(syncNow,1200)}}
 function commit(){if(persist())queueSync();render()}
 function addEvent(e){flushClock();state.events.push({at:Date.now(),period:state.period,...e});commit();showEntry(describeEntry(e))}
 function render(){
@@ -200,7 +200,7 @@ let gameMeta=defaultMeta(), history=[];
 try{gameMeta={...gameMeta,...JSON.parse(localStorage.getItem(META_KEY)||'{}')};history=JSON.parse(localStorage.getItem(REPORTS_KEY)||'[]');if(!Array.isArray(history))history=[]}catch(e){history=[]}
 for(const [field,key] of [['gameDate','date'],['gameOpponent','opponent'],['gameLocation','location'],['gameRecipients','recipients']]){
   $(field).value=gameMeta[key]||'';
-  $(field).addEventListener('change',()=>{gameMeta[key]=$(field).value;try{localStorage.setItem(META_KEY,JSON.stringify(gameMeta))}catch(e){$('reportStatus').textContent='Could not save game details: '+e.message}});
+  $(field).addEventListener('change',()=>{gameMeta[key]=$(field).value;try{localStorage.setItem(META_KEY,JSON.stringify(gameMeta))}catch(e){$('reportStatus').textContent='Could not save game details: '+e.message};if(key==='opponent')queueSync()});
 }
 function playerStatsFor(id,period){
  const a={points:0,dunks:0,foul:0,rebO:0,rebD:0,assist:0,steal:0,block:0,turnover:0,fgm:0,fga:0,fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0};
